@@ -176,20 +176,23 @@ title('t-value profiles')
 hold off
 end
 
-
-%Use function (test_by_permutation_test) located in VASO folder:
+%Use function located in VASO folder:
 cd('/Users/au686880/Desktop/VASO_APstudy/afterPreprocessing')
 
 %Set subject of interest:
-subjcount=2;
+subjcount=1;
 
-
-%Now run permutation, length_permutation_test is the distribution:
-num_permutations=100000; %see test_by_permutation_test.m
-[P_test_final,length_permutation_test]=test_by_permutation_test(profiles(subjcount).passive,zeros(size(profiles(subjcount).passive)),num_permutations);
+% Obtain permuted distribution of maximum tSums (each permutation records both maxPosTsum and maxNegTsum)
+num_permutations=100000;
+gm_bins=4:17;
+maxSums_permDistribution = test_by_permutation_test.m(profiles(subjcount).passive(:,gm_bins),zeros(size(profiles(subjcount).passive(:,gm_bins))), num_permutations);
 
 %Compute p-value for cluster of interest:
-insideClusterLayers=6:9; 
-summed_tval_cluster=sum(t_profiles_passive(subjcount,insideClusterLayers));
-p_clustOfInterest=sum(length_permutation_test>=summed_tval_cluster)./num_permutations
+insideClusterLayers=6:9; %Check in t-profile plot
+observed_tSum=sum(t_profiles_passive(subjcount,insideClusterLayers));
 
+if observed_tSum > 0
+p_COI = sum(maxSums_permDistribution(:,1) >= observed_tSum) / num_permutations
+elseif observed_tSum < 0
+p_COI = sum(maxSums_permDistribution(:,2) <= observed_tSum) / num_permutations
+end
