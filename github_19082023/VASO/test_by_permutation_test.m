@@ -1,91 +1,63 @@
-function [ P_test_final , length_permutation_test ] = test_by_permutation_test( profiles_condition1 , profiles_condition2 , num_permutations )
-% test low contrast 4 layer AM
+function  maxSums_permutedDistribution = test_by_permutation_4oneSided(profiles_condition1, profiles_condition2, num_permutations)
+    % Set the significance threshold
+    Threshold = 0.05;
 
-Threshold = 0.05;
-P_Ttest_ori = []; 
-
-[~,P_Ttest_ori,~,stats] = ttest(profiles_condition1-profiles_condition2);
-P_Ttest_ori = P_Ttest_ori';
-length_ori = check_length_significance(P_Ttest_ori,Threshold,stats.tstat);
-
-length_permutation_test = [];
-for i = 1:num_permutations
-    Matrix_rand1 = rand(size(profiles_condition1,1),1);
-    Matrix_rand1(Matrix_rand1>0.5) = 1;
-    Matrix_rand1(Matrix_rand1<=0.5) = 0;
-    Matrix_rand2 = 1-Matrix_rand1;
-    Matrix1 = []; Matrix2 = [];
-    for j = 1:size(profiles_condition1,2)
-        Matrix1 = [Matrix1 Matrix_rand1];
-        Matrix2 = [Matrix2 Matrix_rand2];
-    end
-    temp_Permutation1 = profiles_condition1.*Matrix2+profiles_condition2.*Matrix1;
-    temp_Permutation2 = profiles_condition1.*Matrix1+profiles_condition2.*Matrix2;
-    
-
-    [~,med_P,~,stats] = ttest(temp_Permutation1-temp_Permutation2);
-    med_P = med_P';
-    
-    length_permutation_test = [length_permutation_test; check_length_significance(med_P,Threshold,stats.tstat)];
-end
-
-
-P_test_final = sum(length_permutation_test>=length_ori)/num_permutations;
-
-end
-
-
-function [ length ] = check_length_significance( P_Ttest , Threshold , tvals )
-
-i = 1;
-max_length = 0;
-max_lengthSum = 0;
-startPointer = 0;
-endPointer = 0;
-while i<=size(P_Ttest,1)
-    %enter if current layer is significant
-    if P_Ttest(i)<=Threshold 
-        %Enter if previous layer was also significant
-        if endPointer ~= 0 
-            endPointer = i; %Set pointer to current layer
-            if max_length<endPointer-startPointer+1
-                max_length = endPointer-startPointer+1;
-            end
-            if sum(tvals(startPointer:endPointer))>max_lengthSum
-                max_lengthSum=sum(tvals(startPointer:endPointer));
-            end
-        %Enter if current layer is start of cluster    
-        else
-            startPointer = i;
-            endPointer = i;
-            if max_length<endPointer-startPointer+1
-                max_length = endPointer-startPointer+1;
-            end
-            if sum(tvals(startPointer:endPointer))>max_lengthSum
-                max_lengthSum=sum(tvals(startPointer:endPointer));
-            end
-        end
-    
+    % Initialize the matrix to store the maximum sums from permutations
+    maxSums_permutedDistribution = zeros(num_permutations, 2);
+    for k = 1:num_permutations
+        % Generate random binary matrices to shuffle conditions
+        Matrix_rand1 = rand(size(profiles_condition1,1), 1) > 0.5;
+        Matrix_rand2 = 1 - Matrix_rand1;
+        Matrix1 = repmat(Matrix_rand1, 1, size(profiles_condition1, 2));
+        Matrix2 = repmat(Matrix_rand2, 1, size(profiles_condition2, 2));
         
-    %Enter if current layer is non-significant
-    else
-        %Enter if current layer is adjacent to significant
-        %cluster to reset pointers.
-        if endPointer ~= 0
-            if max_length<endPointer-startPointer+1
-                max_length = endPointer-startPointer+1;
-            end
-            if sum(tvals(startPointer:endPointer))>max_lengthSum
-                max_lengthSum=sum(tvals(startPointer:endPointer));
-            end
-            startPointer = 0;
-            endPointer = 0;
-        end
+        % Apply the shuffling to create permuted datasets
+        temp_Permutation1 = profiles_condition1 .* Matrix2 + profiles_condition2 .* Matrix1;
+        temp_Permutation2 = profiles_condition1 .* Matrix1 + profiles_condition2 .* Matrix2;
+
+        % Perform t-test on the permuted data
+        [~, med_P, ~, stats] = ttest(temp_Permutation1 - temp_Permutation2);
+        
+        % Calculate the max positive and negative sums for each permutation
+        [posSum, negSum] = check_maxSum(med_P, Threshold, stats.tstat);
+        maxSums_permutedDistribution(k, :) = [posSum, negSum];
     end
-    i = i+1;
-end
-length = max_lengthSum;
 
 end
 
+function [maxPosSum, maxNegSum] = check_maxSum(P_Ttest, Threshold, tvals)
+    % Initialize variables to track max sums
+    i = 1;
+    maxPosSum = 0;
+    maxNegSum = 0;
+    currentSum = 0;
+    startPointer = 0;
+
+    % Iterate through p-values to find significant clusters
+    while i <= numel(P_Ttest)
+        if P_Ttest(i) <= Threshold
+            if startPointer == 0  % Start of a new cluster
+                    startPointer = i;
+                    currentSum = tvals(i);
+            else  % Continue adding to the current cluster
+                if sign(tvals(i)) == sign(currentSum)
+                    currentSum = currentSum + tvals(i);
+                else  % Reset cluster if signs differ (for one-sided)
+                    startPointer = i;
+                    currentSum = tvals(i);
+                end
+            end
+            % Update max sums if current cluster sum exceeds previous max
+            if  currentSum > maxPosSum
+                maxPosSum = currentSum;
+            elseif currentSum < maxNegSum
+                maxNegSum = currentSum;
+            end
+        else  % Reset if the layer is not significant
+            startPointer = 0;
+            currentSum = 0;
+        end
+        i = i + 1;
+    end
+end
 
