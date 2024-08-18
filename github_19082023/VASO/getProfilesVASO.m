@@ -226,15 +226,20 @@ legend('active','passive')
 title('t-values VASO')
 hold off
 
-%Now run permutation, length_permutation_test is the distribution:
-num_permutations=100000; %see test_by_permutation_test.m
-[P_test_final,length_permutation_test]=test_by_permutation_test(passive_profiles_VASO,zeros(size(passive_profiles_VASO)),num_permutations);
+%Now run permutation:
+num_permutations=100000;
+gm_bins=4:17; %Only evaluate gray matter bins.
+maxSums_permDistribution = test_by_permutation_test(passive_profiles_VASO(:,gm_bins), zeros(size(passive_profiles_VASO(:,gm_bins))), num_permutations);
 
 %Compute p-value for cluster of interest:
-insideClusterLayers=6:9; %Check in t-profile plot
-summed_tval_cluster=sum(t_profile_VASO_passive(insideClusterLayers));
-p_clustOfInterest=sum(length_permutation_test>=summed_tval_cluster)./num_permutations
+insideClusterLayers=15:17; %Check in t-profile plot
+observed_tSum=sum(t_profile_VASO_passive(insideClusterLayers));
 
+if observed_tSum > 0
+p_COI_onesided = sum(maxSums_permDistribution(:,1) >= observed_tSum) / num_permutations
+elseif observed_tSum < 0
+p_COI_onesided = sum(maxSums_permDistribution(:,2) <= observed_tSum) / num_permutations
+end
 
 %% GE-BOLD deconvolution
 %First interpolate num_layers to 100 to minimize layer edge effects. Then 
